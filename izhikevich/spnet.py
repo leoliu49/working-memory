@@ -96,6 +96,16 @@ for i in range(N_RS):
 for i in range(N_RS, N):
     post_LUT[i,:] = np.random.choice(N_RS, M, replace=False)
 
+# Given a spike, find when and where to apply synaptic weight
+#   for excitatory neuron i --> random delay (j+1) --> index m (neuron k):
+#       syn_route_LUT[i,m] = [k,j]
+syn_route_LUT = np.empty((N, M, 2), dtype="int64")
+syn_route_LUT[:,:,0] = post_LUT
+for i in range(N):
+    for j in range(MAX_DELAY):
+        m = delays_LUT[i,j,:delay_sizes[i,j]]
+        syn_route_LUT[i,m,1] = j
+
 # Set presynaptic target and STDP auxiliary lookup tables
 #   for excitatory neuron i --> random delay (j+1) --> index m (neuron k):
 #       pre_LUT[k] = [[i1,m1],[i2,m2],[i3,m3],...]
@@ -123,20 +133,22 @@ u = b * v
 firings = list()
 firings.append(np.array([[-MAX_DELAY, 0]]))     # for STDP calculations
 
-# For "--state" options: overwrite all variables
+# For "--load" options: overwrite all variables
 if state is not None:
     S = state["S"]
     dS = state["dS"]
     delays_LUT = state["delays_LUT"]
     delay_sizes = state["delay_sizes"]
     post_LUT = state["post_LUT"]
+    syn_route_LUT = state["syn_route_LUT"]
     pre_LUT = state["pre_LUT"]
     aux_LUT = state["aux_LUT"]
+    pre_sizes = state["pre_sizes"]
     STDP = state["STDP"]
     v = state["v"]
     u = state["u"]
     firings = [firing for firing in state["firings"]]
-    SIM_START = state["SIM_START"]
+    SIM_START = state["SIM_TIME"]
 
 # Simulation: run on 1ms resolution for SIM_TIME seconds
 start_time = time.time()
@@ -251,6 +263,7 @@ if args.save is True:
         delays_LUT=delays_LUT,
         delay_sizes=delay_sizes,
         post_LUT=post_LUT,
+        syn_route_LUT=syn_route_LUT,
         pre_LUT=pre_LUT,
         aux_LUT=aux_LUT,
         pre_sizes=pre_sizes,
@@ -258,7 +271,7 @@ if args.save is True:
         v=v,
         u=u,
         firings=firings,
-        SIM_START=SIM_TIME
+        SIM_TIME=SIM_TIME
     )
 
     print("Simulation state file saved to {}.".format(filename))
