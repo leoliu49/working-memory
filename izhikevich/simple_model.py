@@ -89,7 +89,7 @@ for t in range(T):
 
     # Reset dynamics
     v[spike_indices] = c[spike_indices]
-    u[spike_indices] = u[spike_indices] + d[spike_indices]
+    u[spike_indices] += d[spike_indices]
     I += np.sum(S[:,spike_indices], axis=1)
 
     # Update dynamics (step 0.5ms twice for v for numerical stability)

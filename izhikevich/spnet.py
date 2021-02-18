@@ -171,7 +171,7 @@ for sec in range(SIM_START, int(SIM_TIME)):
 
         # Reset dynamics
         v[spikes] = c[spikes]
-        u[spikes] = u[spikes] + d[spikes]
+        u[spikes] += d[spikes]
 
         # After pre-syn neuron fires, reset STDP
         STDP[spikes,t+MAX_DELAY] = 0.1
