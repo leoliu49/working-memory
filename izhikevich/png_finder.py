@@ -22,6 +22,32 @@ class PNG:
         self.anchors = anchors
         self.max_path_length = max_path_length
 
+    def plot(self, savefig=None):
+        fig = plt.figure()
+
+        spikes = dict()
+        traces = list()
+        for trace in self.polygroup:
+            spikes.setdefault(trace[1], set()).add(trace[0])
+            spikes.setdefault(trace[3], set()).add(trace[4])
+            traces.append(([trace[0], trace[4]], [trace[1], trace[3]]))
+
+        scatter_x = list()
+        scatter_y = list()
+        for n, ts in spikes.items():
+            for t in ts:
+                scatter_x.append(t)
+                scatter_y.append(n)
+        plt.scatter(scatter_x, scatter_y, c="black", marker="^", zorder=2)
+
+        for trace in traces:
+            plt.plot(trace[0], trace[1], zorder=1)
+
+        if savefig is None:
+            fig.show()
+        else:
+            fig.savefig(savefig, dpi=300)
+
 
 # Find polychronous neurons given a set of anchor neurons firing patterns
 #   1. Run simulation with no STDP for T ms
