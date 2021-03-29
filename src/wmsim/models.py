@@ -116,7 +116,9 @@ class IzhikevichNetwork(NeuralNetwork):
                     self.N))
 
         # Extend current input to include spikes arriving after simulation ends
-        I = np.concatenate((I, np.zeros((np.max(self.ACD), self.N), dtype="float64")), axis=0)
+        max_delay = np.max(self.ACD)
+        I = np.concatenate((I, np.zeros((int(np.ceil(max_delay / self.timestep)), self.N),
+            dtype="float64")), axis=0)
 
         # Apply spike activity from previous period
         if self.I_cache is not None:
@@ -142,7 +144,7 @@ class IzhikevichNetwork(NeuralNetwork):
 
             # Set spike conduction in the future
             for spike in spikes:
-                delays = self.ACD[spike,:]
+                delays = np.array(np.ceil(self.ACD[spike,:]), "int")
                 I[st+delays,[i for i in range(self.N)]] += self.S[spike,:]
 
             if self.use_STDP:
