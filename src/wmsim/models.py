@@ -73,6 +73,7 @@ class NeuralNetwork:
 
     def init(self):
         self.sim_time = 0
+        self.firings = np.empty((0, 2), dtype="int")
 
 
 class IzhikevichNetwork(NeuralNetwork):
@@ -164,10 +165,11 @@ class IzhikevichNetwork(NeuralNetwork):
         print("Simulated {} ms ({} steps) in {} seconds.".format(T, steps,
             round(end_time-start_time, 2)))
 
-        firings = np.concatenate(firings)
-        if self.firings is None:
-            self.firings = firings
+        if len(firings) > 0:
+            firings = np.concatenate(firings)
         else:
-            self.firings = np.concatenate((self.firings, firings), axis=0)
+            firings = np.empty((0, 2), dtype="int")
+
+        self.firings = np.concatenate((self.firings, firings), axis=0)
 
         self.sim_time += steps * self.timestep
