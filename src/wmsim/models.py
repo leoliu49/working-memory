@@ -177,10 +177,8 @@ class IzhikevichNetwork(NeuralNetwork):
 
         # Complete spike transfer history
         #   at time t: neuron i --> delay j --> neuron k
-        #       inbound[t+j,k,i] = j
-        #       outbound[t,i,k] = j
-        inbound = np.zeros((steps+max_delay, self.N, self.N), dtype="int")
-        outbound = np.zeros((steps, self.N, self.N), dtype="int")
+        #       spike_graph[t,i,k] = j
+        spike_graph = np.zeros((steps, self.N, self.N), dtype="int")
 
         start_time = time.time()
         for st in range(0, steps):
@@ -193,9 +191,7 @@ class IzhikevichNetwork(NeuralNetwork):
                 delays = ACD_steps[spike,targets]
 
                 I[st+delays,targets] += self.S[spike,targets]
-
-                inbound[st+delays,targets,spike] = delays
-                outbound[st,spike,targets] = delays
+                spike_graph[st,spike,targets] = delays
 
             # Reset dynamics
             self.v[spikes] = self.c[spikes]
@@ -220,4 +216,4 @@ class IzhikevichNetwork(NeuralNetwork):
 
         self.sim_time += steps * self.timestep
 
-        return inbound, outbound
+        return spike_graph
