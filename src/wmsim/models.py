@@ -19,7 +19,6 @@ class NeuralNetwork:
         self.S = None
 
         self.sim_time = None
-        self.firings = None
 
         self.Ap = None; self.tau_p = None; self.p_decay = None
         self.An = None; self.tau_n = None; self.n_decay = None
@@ -92,7 +91,6 @@ class NeuralNetwork:
 
     def init(self):
         self.sim_time = 0
-        self.firings = np.empty((0, 2), dtype="int")
 
         if self.S is None or self.ACD is None:
             raise ModelError("Synapse weighting matrix (S) or delay matrix (ACD) is not set.")
@@ -140,9 +138,9 @@ class IzhikevichNetwork(NeuralNetwork):
 
         # Convert delay to discrete steps
         ACD_steps = np.array(np.ceil(self.ACD/self.timestep), dtype="int")
+        max_delay = np.max(ACD_steps)
 
         # Extend current input to include spikes arriving after simulation ends
-        max_delay = np.max(ACD_steps)
         I = np.concatenate((I, np.zeros((max_delay, self.N),
             dtype="float64")), axis=0)
 
@@ -150,8 +148,12 @@ class IzhikevichNetwork(NeuralNetwork):
         if self.I_cache is not None:
             I[:self.I_cache.shape[0],:] += self.I_cache
 
-        firings = list()
-        firings.append(np.array([[-1*np.max(self.ACD), 0]])) # For STDP calculations
+        # Complete spike transfer history
+        #   at time t: neuron i --> delay j --> neuron k
+        #       inbound[t+j,k,i] = j
+        #       outbound[t,i,k] = j
+        inbound = np.zeros((steps+max_delay, self.N, self.N), dtype="int")
+        outbound = np.zeros((steps, self.N, self.N), dtype="int")
 
         start_time = time.time()
         for st in range(0, steps):
@@ -159,22 +161,18 @@ class IzhikevichNetwork(NeuralNetwork):
 
             # Find and record spike activity
             spikes = np.where(self.v>=IzhikevichNetwork.SPIKE_THRESHOLD)[0]
-            new_firings = np.vstack((
-                np.full(spikes.shape, t),
-                spikes
-            )).T
-            if new_firings.shape[0] != 0:
-                firings.append(new_firings)
+            for spike in spikes:
+                targets = np.where(ACD_steps[spike,:] > 0)[0]
+                delays = ACD_steps[spike,targets]
+
+                I[st+delays,targets] += self.S[spike,targets]
+
+                inbound[st+delays,targets,spike] = delays
+                outbound[st,spike,targets] = delays
 
             # Reset dynamics
             self.v[spikes] = self.c[spikes]
             self.u[spikes] += self.d[spikes]
-
-            # Set spike conduction in the future
-            for spike in spikes:
-                targets = np.where(ACD_steps[spike,:] > 0)[0]
-                delays = ACD_steps[spike,targets]
-                I[st+delays,targets] += self.S[spike,targets]
 
             if self.use_STDP is True:
                 pass
@@ -193,11 +191,6 @@ class IzhikevichNetwork(NeuralNetwork):
         print("Simulated {} ms ({} steps) in {} seconds.".format(T, steps,
             round(end_time-start_time, 2)))
 
-        if len(firings) > 0:
-            firings = np.concatenate(firings[1:])
-        else:
-            firings = np.empty((0, 2), dtype="int")
-
-        self.firings = np.concatenate((self.firings, firings), axis=0)
-
         self.sim_time += steps * self.timestep
+
+        return inbound, outbound
