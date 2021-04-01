@@ -22,6 +22,9 @@ class NeuralNetwork:
 
         self.Ap = None; self.tau_p = None; self.p_decay = None
         self.An = None; self.tau_n = None; self.n_decay = None
+        self.STDP_LUT = None; self.STDP_precompute = None
+
+        self.apply_STDP = dict()
 
         self.timestep = kwargs.get("timestep", NeuralNetwork.DEFAULT_TIMESTEP)
         self.use_STDP = kwargs.get("use_STDP", False)
@@ -48,6 +51,7 @@ class NeuralNetwork:
             report.append("{}*exp(dt/{})".format(self.Ap, self.tau_p))
             report.append("   --->   ")
             report.append("{}*exp(dt/{})".format(self.An, self.tau_n))
+            report.append("    (precomputed to {} ratio)".format(self.STDP_precompute))
 
         return "".join(report)
 
@@ -69,6 +73,7 @@ class NeuralNetwork:
         except KeyError as e:
             raise ModelError("Neuron parameter <{}> not specified.".format(e.args[0]))
 
+        self.apply_STDP[label] = self.use_STDP
         self.N += N
 
     def set_synapse_matrices(self, *, S, ACD):
@@ -82,12 +87,34 @@ class NeuralNetwork:
         # Negative/zero conduction delays are assumed as disconnected
         self.ACD[self.ACD <= 0] = 0
 
-    def set_STDP_curve(self, Ap, tau_p, An, tau_n):
+    def set_STDP_curve(self, Ap, tau_p, An, tau_n, precompute=0.001):
         if not self.use_STDP:
             raise ModelError("STDP is disabled.")
 
         self.Ap = Ap; self.tau_p = tau_p; self.p_decay = 1 - (1/(tau_p/self.timestep))
         self.An = -1 * abs(An); self.tau_n = tau_n; self.n_decay = 1 - (1/(tau_n/self.timestep))
+
+
+        # Precompute STDP values for faster lookup during simulation
+        self.STDP_precompute = precompute
+        self.STDP_LUT = dict()
+
+        stdp = self.Ap
+        i = 0
+        while abs(stdp) > self.STDP_precompute * abs(Ap):
+            self.STDP_LUT[i] = stdp
+            stdp *= self.p_decay
+            i += 1
+
+        stdp = self.An * self.n_decay
+        i = -1
+        while abs(stdp) > self.STDP_precompute * abs(An):
+            self.STDP_LUT[i] = stdp
+            stdp *= self.n_decay
+            i -= 1
+
+    def disable_STDP_for(self, label):
+        self.apply_STDP[label] = False
 
     def init(self):
         self.sim_time = 0
