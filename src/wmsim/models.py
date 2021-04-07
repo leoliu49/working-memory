@@ -17,8 +17,9 @@ class NeuralNetwork:
         self.neuron_groups = dict()
         self.neuron_params = list()
         self.S = None
+        self.ACD = None
 
-        self.sim_time = None
+        self.sim_time = 0
 
         self.Ap = None; self.tau_p = None; self.p_decay = None
         self.An = None; self.tau_n = None; self.n_decay = None
@@ -117,12 +118,64 @@ class NeuralNetwork:
         self.apply_STDP[label] = False
 
     def init(self):
-        self.sim_time = 0
-
         if self.S is None or self.ACD is None:
             raise ModelError("Synapse weighting matrix (S) or delay matrix (ACD) is not set.")
         if self.use_STDP is True and (self.Ap is None or self.An is None):
             raise ModelError("STDP curve parameters are not set.")
+
+    def get_state(self):
+        state = {
+            "model_name": self.model_name,
+            "sim_time": self.sim_time,
+            "timestep": self.timestep,
+            "network": {
+                "N": self.N,
+                "neuron_params": self.neuron_params,
+                "neuron_groups": self.neuron_groups,
+                "S": np.array(self.S),
+                "ACD": np.array(self.ACD),
+            }
+        }
+
+        if self.use_STDP is True:
+            state["STDP"] = {
+                "Ap": self.Ap,
+                "tau_p": self.tau_p,
+                "An": self.An,
+                "tau_n": self.tau_n,
+                "precompute": self.STDP_precompute,
+                "apply_to": self.apply_STDP
+            }
+
+        return state
+
+    def save_state_to_file(self, filename):
+        state = self.get_state()
+        np.savez(filename, **state)
+
+    def load_state(self, state):
+        self.model_name = state["model_name"]
+        self.sim_time = state["sim_time"]
+        self.timestep = state["timestep"]
+        self.N = state["network"]["N"]
+        self.neuron_groups = state["network"]["neuron_groups"]
+        self.neuron_params = state["network"]["neuron_params"]
+
+        self.set_synapse_matrices(S=state["network"]["S"], ACD=state["network"]["ACD"])
+
+        if "STDP" in state:
+            self.use_STDP = True
+            self.set_STDP_curve(state["STDP"]["Ap"], state["STDP"]["tau_p"], state["STDP"]["An"],
+                state["STDP"]["tau_n"], state["STDP"]["precompute"])
+            self.apply_STDP = state["STDP"]["apply_to"]
+
+        print("Loaded state at {} ms.", self.sim_time)
+        print(self.network_config)
+
+    def load_state_from_file(self, filename):
+        state = np.load(filename, allow_pickle=True)
+        state = {key: item.item() for key, item in state.items()}
+        self.load_state(state)
 
 
 class IzhikevichNetwork(NeuralNetwork):
@@ -153,6 +206,27 @@ class IzhikevichNetwork(NeuralNetwork):
         self.d = np.concatenate([grp[1]["d"] for grp in self.neuron_groups.values()], axis=0)
 
         self.I_cache = None
+
+    def get_state(self):
+        state = super().get_state()
+        state["simulation"] = {
+            "v": np.array(self.v),
+            "u": np.array(self.u),
+            "I_cache": np.array(self.I_cache)
+        }
+
+        return state
+
+    def load_state(self, state):
+        super().load_state(state)
+        self.v = state["simulation"]["v"]
+        self.u = state["simulation"]["u"]
+        self.I_cache = state["simulation"]["I_cache"]
+
+        self.a = np.concatenate([grp[1]["a"] for grp in self.neuron_groups.values()], axis=0)
+        self.b = np.concatenate([grp[1]["b"] for grp in self.neuron_groups.values()], axis=0)
+        self.c = np.concatenate([grp[1]["c"] for grp in self.neuron_groups.values()], axis=0)
+        self.d = np.concatenate([grp[1]["d"] for grp in self.neuron_groups.values()], axis=0)
 
     def evolve_for(self, T, *, I=None):
         steps = int(T/self.timestep)
