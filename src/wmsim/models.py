@@ -8,7 +8,7 @@ class ModelError(Exception):
 
 class NeuralNetwork:
 
-    DEFAULT_TIMESTEP = 1
+    DEFAULT_TIMESTEP = 1.0
 
     def __init__(self, model_name, **kwargs):
         self.model_name = model_name
@@ -94,7 +94,6 @@ class NeuralNetwork:
 
         self.Ap = Ap; self.tau_p = tau_p; self.p_decay = 1 - (1/(tau_p/self.timestep))
         self.An = -1 * abs(An); self.tau_n = tau_n; self.n_decay = 1 - (1/(tau_n/self.timestep))
-
 
         # Precompute STDP values for faster lookup during simulation
         self.STDP_precompute = precompute
@@ -251,7 +250,9 @@ class IzhikevichNetwork(NeuralNetwork):
 
         # Complete spike transfer history
         #   at time t: neuron i --> delay j --> neuron k
+        #       spike_raster[t] = [i1,i2,i3...]
         #       spike_graph[t,i,k] = j
+        spike_raster = list([list() for i in range(steps)])
         spike_graph = np.zeros((steps, self.N, self.N), dtype="int")
 
         start_time = time.time()
@@ -260,6 +261,7 @@ class IzhikevichNetwork(NeuralNetwork):
 
             # Find and record spike activity
             spikes = np.where(self.v>=IzhikevichNetwork.SPIKE_THRESHOLD)[0]
+            spike_raster[st].extend(spikes)
             for spike in spikes:
                 targets = np.where(ACD_steps[spike,:] > 0)[0]
                 delays = ACD_steps[spike,targets]
@@ -290,4 +292,4 @@ class IzhikevichNetwork(NeuralNetwork):
 
         self.sim_time += steps * self.timestep
 
-        return spike_graph
+        return spike_raster, spike_graph
