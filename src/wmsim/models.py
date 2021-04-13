@@ -232,7 +232,7 @@ class IzhikevichNetwork(NeuralNetwork):
         if I is None:
             I = np.zeros((steps, self.N), dtype="float64")
         else:
-            if I.shape[0] != steps and I.shape[1] != self.N:
+            if I.shape[0] != steps or I.shape[1] != self.N:
                 raise ModelError("Dimensions for input current (I) must be {}x{}.".format(steps,
                     self.N))
 
@@ -285,10 +285,10 @@ class IzhikevichNetwork(NeuralNetwork):
             if self.use_STDP is True:
                 pass
 
-            # Update dynamics (half-step twice for v for numerical stability)
-            self.v += 0.5 * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I[st,:])
-            self.v += 0.5 * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I[st,:])
-            self.u += self.a * (self.b * self.v - self.u)
+            # Update dynamics
+            I_in = I[st,:]
+            self.v += self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I_in)
+            self.u += self.timestep * (self.a * (self.b * self.v - self.u))
 
             if save_v is True:
                 other["save_v"][st,:] = np.array(self.v)

@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
+import numpy as np
 from wmsim.models import *
 
-n = IzhikevichNetwork()
+timestep = 0.5
+n = IzhikevichNetwork(timestep=timestep)
 
 T = 1000
 N_exc = 800
@@ -29,6 +31,7 @@ d_inh = np.full((N_inh,), D_TYPICAL)
 S = np.random.rand(N_exc+N_inh, N_exc+N_inh)
 S[:N_exc,:] *= 0.5
 S[N_exc:,:] *= -1
+S /= timestep
 
 ACD = np.full((N_exc+N_inh, N_exc+N_inh), 1)
 
@@ -47,6 +50,7 @@ n.init()
 I = np.random.randn(T, N_exc+N_inh)
 I[:,:N_exc] *= 5
 I[:,N_exc:] *= 2
+I = np.repeat(I, np.ceil(1/timestep), axis=0)
 
 raster, graph, other = n.evolve_for(T, I=I, save_v=True, save_u=True, save_I=True)
 firings = list()
