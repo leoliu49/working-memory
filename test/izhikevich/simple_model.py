@@ -48,7 +48,7 @@ I = np.random.randn(T, N_exc+N_inh)
 I[:,:N_exc] *= 5
 I[:,N_exc:] *= 2
 
-raster, graph = n.evolve_for(T, I=I)
+raster, graph, other = n.evolve_for(T, I=I, save_v=True, save_u=True, save_I=True)
 firings = list()
 for st in range(len(raster)):
     t = st * n.timestep

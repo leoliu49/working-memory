@@ -227,7 +227,7 @@ class IzhikevichNetwork(NeuralNetwork):
         self.c = np.concatenate([grp[1]["c"] for grp in self.neuron_groups.values()], axis=0)
         self.d = np.concatenate([grp[1]["d"] for grp in self.neuron_groups.values()], axis=0)
 
-    def evolve_for(self, T, *, I=None):
+    def evolve_for(self, T, *, I=None, save_v=False, save_u=False, save_I=False):
         steps = int(T/self.timestep)
         if I is None:
             I = np.zeros((steps, self.N), dtype="float64")
@@ -255,6 +255,15 @@ class IzhikevichNetwork(NeuralNetwork):
         spike_raster = list([list() for i in range(steps)])
         spike_graph = np.zeros((steps, self.N, self.N), dtype="int")
 
+        # All other recorded data accessible through kwargs
+        other = dict()
+
+        # Complete voltage and recovery variable evolution history
+        if save_v is True:
+            other["save_v"] = np.empty((steps, self.N), dtype="float64")
+        if save_u is True:
+            other["save_u"] = np.empty((steps, self.N), dtype="float64")
+
         start_time = time.time()
         for st in range(0, steps):
             t = self.sim_time + st * self.timestep
@@ -281,6 +290,11 @@ class IzhikevichNetwork(NeuralNetwork):
             self.v += 0.5 * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I[st,:])
             self.u += self.a * (self.b * self.v - self.u)
 
+            if save_v is True:
+                other["save_v"][st,:] = np.array(self.v)
+            if save_u is True:
+                other["save_u"][st,:] = np.array(self.u)
+
         if self.use_STDP is True:
             pass
 
@@ -292,4 +306,7 @@ class IzhikevichNetwork(NeuralNetwork):
 
         self.sim_time += steps * self.timestep
 
-        return spike_raster, spike_graph
+        if save_I is True:
+            other["save_I"] = np.array(I)
+
+        return spike_raster, spike_graph, other
