@@ -195,6 +195,12 @@ class IzhikevichNetwork(NeuralNetwork):
 
         self.I_cache = None
 
+        self._autoevolve = {
+            "preset_1": self._autoevolve_preset_1,
+            "preset_2": self._autoevolve_preset_2,
+            "preset_3": self._autoevolve_preset_3
+        }[kwargs.get("autoevolve_formula", "preset_1")]
+
     def init(self):
         super().init()
         self.v = np.concatenate([grp[1]["v0"] for grp in self.neuron_groups.values()], axis=0)
@@ -226,6 +232,18 @@ class IzhikevichNetwork(NeuralNetwork):
         self.b = np.concatenate([grp[1]["b"] for grp in self.neuron_groups.values()], axis=0)
         self.c = np.concatenate([grp[1]["c"] for grp in self.neuron_groups.values()], axis=0)
         self.d = np.concatenate([grp[1]["d"] for grp in self.neuron_groups.values()], axis=0)
+
+    def _autoevolve_preset_1(self, I):
+        self.v += self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I)
+        self.u += self.timestep * (self.a * (self.b * self.v - self.u))
+
+    def _autoevolve_preset_2(self, I):
+        self.v += self.timestep * (0.04 * np.square(self.v) + 4.1 * self.v + 108 - self.u + I)
+        self.u += self.timestep * (self.a * (self.b * self.v - self.u))
+
+    def _autoevolve_preset_3(self, I):
+        self.v += self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I)
+        self.u += self.timestep * (self.a * (self.b * (self.v + 65)))
 
     def evolve_for(self, T, *, I=None, save_v=False, save_u=False, save_I=False):
         steps = int(T/self.timestep)
@@ -286,9 +304,7 @@ class IzhikevichNetwork(NeuralNetwork):
                 pass
 
             # Update dynamics
-            I_in = I[st,:]
-            self.v += self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I_in)
-            self.u += self.timestep * (self.a * (self.b * self.v - self.u))
+            self._autoevolve(I[st,:])
 
             if save_v is True:
                 other["save_v"][st,:] = np.array(self.v)
