@@ -85,6 +85,9 @@ class NeuralNetwork:
         self.S = np.array(S, dtype="float64")
         self.ACD = np.array(ACD, dtype="float64")
 
+        # Synaptic strength inversely correlated with timestep
+        self.S /= self.timestep
+
         # Negative/zero conduction delays are assumed as disconnected
         self.ACD[self.ACD <= 0] = 0
 
