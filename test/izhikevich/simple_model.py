@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from wmsim.models import *
 
-timestep = 0.5
+timestep = 1.0
 n = IzhikevichNetwork(timestep=timestep)
 
 T = 1000
