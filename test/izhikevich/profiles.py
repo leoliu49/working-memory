@@ -1,3 +1,12 @@
+"""
+Modified version of the Izhikevich neuro-computational profiles from "Which
+Model to Use for Cortical Spiking Neurons?"
+
+E. M. Izhikevich, "Which model to use for cortical spiking neurons?," in IEEE
+Transactions on Neural Networks, vol. 15, no. 5, pp. 1063-1070, Sept. 2004
+~~~~~~~~
+Created by Leo Liu, April 2021
+"""
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np

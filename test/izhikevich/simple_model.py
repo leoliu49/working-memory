@@ -1,3 +1,12 @@
+"""
+Modified version of the Izhikevich simple neuron model from "Simple Model of
+Spiking Neurons"
+
+E. M. Izhikevich, "Simple model of spiking neurons," in IEEE Transactions on
+Neural Networks, vol. 14, no. 6, pp. 1569-1572, Nov. 2003.
+~~~~~~~~
+Created by Leo Liu, December 2020
+"""
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
