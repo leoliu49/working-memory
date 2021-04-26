@@ -1,3 +1,4 @@
+import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 from wmsim.models import *
@@ -95,7 +96,14 @@ profiles = {
     "inh. ind. burst":  [-0.026,-1,     -45,    -2,     -63.8,  350]
 }
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--timesteps", metavar="dt", type=float, nargs="+", default=[0.25, 0.05, 0.01],
+    help="Simulation timestep (ms)")
+args = parser.parse_args()
+timesteps = list(dict.fromkeys(args.timesteps))
+
 fig, axs = plt.subplots(5, 4)
+last_ax = None
 
 for plot_num, item in enumerate(profiles.items()):
     profile = item[0]; variables = item[1]
@@ -118,7 +126,7 @@ for plot_num, item in enumerate(profiles.items()):
     else:
         autoevolve_formula = "preset_1"
 
-    for timestep in [0.25, 0.01]:
+    for timestep in timesteps:
         steps = int(T/timestep)
         time = np.linspace(0, T-timestep, steps)
 
@@ -134,7 +142,7 @@ for plot_num, item in enumerate(profiles.items()):
         all_u = other["save_u"]
 
         ax = axs[int(plot_num/4), plot_num%4]
-        ax.plot(time, all_v, linewidth=0.5)
+        ax.plot(time, all_v, linewidth=0.5, label="dt = {} ms".format(timestep))
         ax.set_xticks([])
         ax.set_yticks([])
 
@@ -145,5 +153,9 @@ for plot_num, item in enumerate(profiles.items()):
         twin.set_xticks([])
         twin.set_yticks([])
 
+        last_ax = ax
+
 plt.suptitle("Spiking Profiles Identified by Izhikevich")
+handles, labels = ax.get_legend_handles_labels()
+fig.legend(handles, labels)
 plt.show()
