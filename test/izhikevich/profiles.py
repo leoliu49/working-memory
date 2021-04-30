@@ -146,7 +146,7 @@ for plot_num, item in enumerate(profiles.items()):
 
         I = make_I(profile, T, timestep)
 
-        raster, graph, other = n.evolve_for(T, I=I, save_v=True, save_u=True, save_I=True)
+        raster, _, other = n.evolve_for(T, I=I, save_v=True, save_u=True, save_I=True)
         all_v = np.clip(other["save_v"], None, n.SPIKE_THRESHOLD)
         all_u = other["save_u"]
 

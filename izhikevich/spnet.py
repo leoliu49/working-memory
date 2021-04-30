@@ -74,7 +74,7 @@ dS = np.zeros((N, M))
 #   for excitatory neuron i --> random delay (j+1) --> indices m:
 #       delays_LUT[i,j] = [m1,m2,m3,...]
 #   for inhibitory neuron:
-#       delays_LUT[i,1] = [1,2,3,...,M]
+#       delays_LUT[i,0] = [1,2,3,...,M]
 #   delay_sizes: size of each delays_LUT[i,j] array
 delays_LUT = np.empty((N, MAX_DELAY, M), dtype="int64")
 delay_sizes = np.zeros((N, MAX_DELAY), dtype="int64")
@@ -84,8 +84,8 @@ for i in range(N_RS):
         delays_LUT[i,j,delay_sizes[i,j]] = m
         delay_sizes[i,j] += 1
 for i in range(N_RS, N):
-    delays_LUT[i,1,:] = np.linspace(0, M-1, M)
-    delay_sizes[i,1] = M
+    delays_LUT[i,0,:] = np.linspace(0, M-1, M)
+    delay_sizes[i,0] = M
 
 # Set postsynaptic target lookup tables
 #   for neuron i --> random delay (j+1) --> index m (neuron k):
@@ -131,7 +131,7 @@ STDP = np.zeros((N, H))
 v = np.full((N_RS+N_FS,), C_RS, dtype="float64")
 u = b * v
 firings = list()
-firings.append(np.array([[-MAX_DELAY, 0]]))     # for STDP calculations
+firings.append(np.array([[-MAX_DELAY-1, 0]]))     # for STDP calculations
 
 # For "--load" options: overwrite all variables
 if state is not None:
@@ -189,16 +189,16 @@ for sec in range(SIM_START, int(SIM_TIME)):
         #       I[k] = I[k] + S[i,m]
         #       dS[i,m] = dS[i,m] - 1.2*STDP[k,t+MAX_DELAY]
         df = 0
-        while firings[-1+df][0,0] > t - MAX_DELAY:  # all have same recorded t
+        while firings[-1+df][0,0] >= t - MAX_DELAY:  # all have same recorded t
             firing = firings[-1+df]
-            dt = t - firing[0,0] + 1; j = dt-1
+            dt = t - firing[0,0]; j = dt-1
+            if dt > 0:
+                for i in firing[:,1]:
+                    m = delays_LUT[i,j,:delay_sizes[i,j]]
+                    k = post_LUT[i,m]
 
-            for i in firing[:,1]:
-                m = delays_LUT[i,j,:delay_sizes[i,j]]
-                k = post_LUT[i,m]
-
-                I[k] += S[i,m]
-                dS[i,m] -= 1.2 * STDP[k,t+MAX_DELAY]
+                    I[k] += S[i,m]
+                    dS[i,m] -= 1.2 * STDP[k,t+MAX_DELAY]
 
             df -= 1
 
@@ -242,7 +242,7 @@ for sec in range(SIM_START, int(SIM_TIME)):
 
     tail_firings = firings[np.where(firings[:,0] > (1000 - MAX_DELAY))]
     tail_firings[:,0] -= 1000
-    firings = [np.array([[-MAX_DELAY, 0]])]
+    firings = [np.array([[-MAX_DELAY-1, 0]])]
     firings.extend([np.array([tf]) for tf in tail_firings])
 
 end_time = time.time()
