@@ -10,7 +10,7 @@ Created by Leo Liu, December 2020
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
-from wmsim.models import *
+from wmsim.izhikevich import IzhikevichNN
 
 
 T = 1000
@@ -67,7 +67,7 @@ for nid in track_nids:
 # Test sequence
 print("Simulating simple model for {} ms with dt = {}".format(T, timesteps))
 for timestep in timesteps:
-    n = IzhikevichNetwork(timestep=timestep)
+    n = IzhikevichNN(timestep=timestep)
     n.add_neuron_group(N=N_exc, a=a_exc, b=b_exc, c=c_exc, d=d_exc, v0=v0_exc, u0=u0_exc, label="Excitatory")
     n.add_neuron_group(N=N_inh, a=a_inh, b=b_inh, c=c_inh, d=d_inh, v0=v0_inh, u0=u0_inh, label="Inhibitory")
     n.set_synapse_matrices(S=S, ACD=ACD)
@@ -80,7 +80,7 @@ for timestep in timesteps:
     I = np.zeros((int(np.ceil(T/timestep)), N_exc+N_inh))
     I[::int(np.ceil(1/timestep)),:] = Iin
 
-    raster, _, other = n.evolve_for(T, I=I, save_v=True, save_u=True, save_I=True)
+    raster, other = n.evolve_for(T, I=I, save_v=True, save_u=True, save_I=True)
     firings = list()
     for st in range(len(raster)):
         t = st * n.timestep

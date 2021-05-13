@@ -10,7 +10,7 @@ Created by Leo Liu, April 2021
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
-from wmsim.models import *
+from wmsim.izhikevich import IzhikevichNN
 
 
 def make_I(profile, T, timestep):
@@ -139,15 +139,15 @@ for plot_num, item in enumerate(profiles.items()):
         steps = int(T/timestep)
         time = np.linspace(0, T-timestep, steps)
 
-        n = IzhikevichNetwork(timestep=timestep, autoevolve_formula=autoevolve_formula)
+        n = IzhikevichNN(timestep=timestep, autoevolve_formula=autoevolve_formula)
         n.add_neuron_group(N=1, a=a, b=b, c=c, d=d, v0=v0, u0=u0, label=profile)
         n.set_synapse_matrices(S=np.zeros((1, 1)), ACD=np.zeros((1, 1)))
         n.init()
 
         I = make_I(profile, T, timestep)
 
-        raster, _, other = n.evolve_for(T, I=I, save_v=True, save_u=True, save_I=True)
-        all_v = np.clip(other["save_v"], None, n.SPIKE_THRESHOLD)
+        raster, other = n.evolve_for(T, I=I, save_v=True, save_u=True, save_I=True)
+        all_v = np.clip(other["save_v"], None, n.spike_threshold)
         all_u = other["save_u"]
 
         ax = axs[int(plot_num/4), plot_num%4]
