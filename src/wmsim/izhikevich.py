@@ -72,7 +72,7 @@ class IzhikevichNN(CommonNN):
         self.v += 0.5 * self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I)
         self.u += self.timestep * (self.a * (self.b * self.v - self.u))
 
-    def evolve_for(self, T, *, I=None, save_v=False, save_u=False, save_I=False, save_STDP=False):
+    def evolve_for(self, T, *, I=None):
         Nsteps = int(T/self.timestep)
         if I is None:
             I = np.zeros((Nsteps, self.N), dtype="float64")
@@ -107,10 +107,8 @@ class IzhikevichNN(CommonNN):
 
         # All other recorded data are accessible with kwarg flags
         other = dict()
-        if save_v:
-            other["save_v"] = np.empty((Nsteps, self.N), dtype="float64")
-        if save_u:
-            other["save_u"] = np.empty((Nsteps, self.N), dtype="float64")
+        other["save_v"] = np.empty((Nsteps, self.N), dtype="float64")
+        other["save_u"] = np.empty((Nsteps, self.N), dtype="float64")
 
         # Arithmetic / lookup functions
         def post(source):
@@ -146,28 +144,23 @@ class IzhikevichNN(CommonNN):
             #   Decay all STDP values
             if self.use_STDP:
                 STDPp[st,spikes] = self.Ap; STDPn[st,spikes] = self.An;
-
                 for spike in spikes:
                     sources = pre(spike); delays = ACD[sources,spike]
                     self.dS[sources,spike] += STDPp[st-delays,sources]
-
                 dst = max_delay
                 for prev_spikes in array_slice(raster, st-max_delay, st):
                     for spike in prev_spikes:
                         on_time_targets = np.where(ACD[spike,:]==dst)[0]
                         self.dS[spike,on_time_targets] += STDPn[st,on_time_targets]
                     dst -= 1
-
                 STDPp[st+1,:] = STDPp[st,:] * self.p_decay
                 STDPn[st+1,:] = STDPn[st,:] * self.n_decay
 
             # Update dynamics
             self._autoevolve(I[st,:])
 
-            if save_v:
-                other["save_v"][st,:] = np.array(self.v)
-            if save_u:
-                other["save_u"][st,:] = np.array(self.u)
+            other["save_v"][st,:] = np.array(self.v)
+            other["save_u"][st,:] = np.array(self.u)
 
         # Post-evolution STDP update:
         #   Apply dS to S (S = S + dS + 0.01)
@@ -191,15 +184,14 @@ class IzhikevichNN(CommonNN):
         self.next_I = np.array(I[Nsteps:,:], dtype="float64")
         self.raster_cache = raster[Nsteps-max_delay:Nsteps]
 
+        self.sim_time += Nsteps * self.timestep
+
+        if self.use_STDP:
+            other["save_STDP"] = (np.array(STDPp), np.array(STDPn))
+        other["save_I"] = np.array(I)
+
         end_time = time.time()
         print("Simulated {} ms ({} steps) in {} seconds.".format(T, Nsteps,
             round(end_time-start_time, 2)))
-
-        self.sim_time += Nsteps * self.timestep
-
-        if save_I:
-            other["save_I"] = np.array(I)
-        if save_STDP:
-            other["save_STDP"] = (np.array(STDPp), np.array(STDPn))
 
         return raster[:Nsteps], other

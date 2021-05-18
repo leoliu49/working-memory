@@ -80,7 +80,7 @@ for timestep in timesteps:
     I = np.zeros((int(np.ceil(T/timestep)), N_exc+N_inh))
     I[::int(np.ceil(1/timestep)),:] = Iin
 
-    raster, other = n.evolve_for(T, I=I, save_v=True, save_u=True, save_I=True)
+    raster, other = n.evolve_for(T, I=I)
     firings = list()
     for st in range(len(raster)):
         t = st * n.timestep

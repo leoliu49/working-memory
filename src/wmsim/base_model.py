@@ -202,10 +202,10 @@ class CommonNN(BaseNN):
         self.S = state["network"]["S"]
         self.ACD = state["network"]["ACD"]
 
-        self.next_I = state["cache"]["next_I"]
-        self.next_STDPp = state["cache"]["next_STDPp"]
-        self.next_STDPn = state["cache"]["next_STDPn"]
-        self.raster_cache = state["cache"]["raster_cache"]
+        self.next_I = state["network"]["cache"]["next_I"]
+        self.next_STDPp = state["network"]["cache"]["next_STDPp"]
+        self.next_STDPn = state["network"]["cache"]["next_STDPn"]
+        self.raster_cache = state["network"]["cache"]["raster_cache"]
 
         self.timestep = state["network"]["timestep"]
         self.use_STDP = state["network"]["use_STDP"]
