@@ -26,9 +26,9 @@ class BaseNN:
         report = list()
         report.append("{:^20} | {:^5} | Parameters\n".format("Label", "N"))
         for label, grp in self.neuron_groups.items():
-            report.append("{:^20} | {:^5} | ".format(label, grp[0]))
+            report.append("{:^20} | {:^5} | ".format(label, grp[1]-grp[0]))
             report.append("".join("{:>4} ~= {:>6} ".format(param, round(np.mean(values), 2))
-                for param, values in grp[1].items()))
+                for param, values in grp[2].items()))
             report.append("\n")
 
         return "".join(report)
@@ -47,11 +47,10 @@ class BaseNN:
                 if len(kwargs[param]) != N:
                     raise ModelError("Parameter <{}> is mismatched with N = {}.".format(param, N))
 
-            self.neuron_groups[label] = (N, grp_values)
+            self.neuron_groups[label] = (self.N, self.N+N, grp_values)
         except KeyError as e:
             raise ModelError("Neuron parameter <{}> not specified.".format(e.args[0]))
 
-        self.apply_STDP[label] = self.use_STDP
         self.N += N
 
     def init(self):
@@ -99,7 +98,7 @@ class CommonNN(BaseNN):
         self.An = None; self.tau_n = None; self.n_decay = None
         self.dS = None; self.dS_decay = None
         self.S_min = None; self.S_max = None
-        self.apply_STDP = dict()
+        self.apply_STDP = set()
 
         # Cached values to apply to next evolution period
         self.next_I = None
@@ -121,6 +120,11 @@ class CommonNN(BaseNN):
             report.append("{}*exp(dt/{})".format(self.An, self.tau_n))
 
         return "".join(report)
+
+    def add_neuron_group(self, *, N=1, label=None, **kwargs):
+        super().add_neuron_group(N=N, label=label, **kwargs)
+        if self.use_STDP:
+            self.apply_STDP.update({i for i in range(self.N-N, self.N)})
 
     def set_synapse_matrices(self, *, S, ACD):
         if S.shape[0] != self.N or S.shape[1] != self.N:
@@ -147,7 +151,8 @@ class CommonNN(BaseNN):
         self.S_min = S_min; self.S_max = S_max
 
     def disable_STDP_for(self, label):
-        self.apply_STDP[label] = False
+        grp = self.neuron_groups[label]
+        self.apply_STDP.difference_update({i for i in range(grp[0], grp[1])})
 
     def init(self):
         if self.S is None or self.ACD is None:
@@ -157,6 +162,8 @@ class CommonNN(BaseNN):
 
         if self.use_STDP:
             self.dS = np.zeros_like(self.S)
+
+        self.apply_STDP = np.array([i for i in self.apply_STDP])
 
         self.next_I = np.zeros((0, self.N), dtype="float64")
         self.next_STDPp = np.zeros((0, self.N), dtype="float64")

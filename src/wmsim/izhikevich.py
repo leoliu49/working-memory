@@ -26,12 +26,12 @@ class IzhikevichNN(CommonNN):
 
     def init(self):
         super().init()
-        self.v = np.concatenate([grp[1]["v0"] for grp in self.neuron_groups.values()], axis=0)
-        self.u = np.concatenate([grp[1]["u0"] for grp in self.neuron_groups.values()], axis=0)
-        self.a = np.concatenate([grp[1]["a"] for grp in self.neuron_groups.values()], axis=0)
-        self.b = np.concatenate([grp[1]["b"] for grp in self.neuron_groups.values()], axis=0)
-        self.c = np.concatenate([grp[1]["c"] for grp in self.neuron_groups.values()], axis=0)
-        self.d = np.concatenate([grp[1]["d"] for grp in self.neuron_groups.values()], axis=0)
+        self.v = np.concatenate([grp[2]["v0"] for grp in self.neuron_groups.values()], axis=0)
+        self.u = np.concatenate([grp[2]["u0"] for grp in self.neuron_groups.values()], axis=0)
+        self.a = np.concatenate([grp[2]["a"] for grp in self.neuron_groups.values()], axis=0)
+        self.b = np.concatenate([grp[2]["b"] for grp in self.neuron_groups.values()], axis=0)
+        self.c = np.concatenate([grp[2]["c"] for grp in self.neuron_groups.values()], axis=0)
+        self.d = np.concatenate([grp[2]["d"] for grp in self.neuron_groups.values()], axis=0)
 
     @property
     def network_state(self):
@@ -50,10 +50,10 @@ class IzhikevichNN(CommonNN):
         self.v = state["simulation"]["v"]
         self.u = state["simulation"]["u"]
 
-        self.a = np.concatenate([grp[1]["a"] for grp in self.neuron_groups.values()], axis=0)
-        self.b = np.concatenate([grp[1]["b"] for grp in self.neuron_groups.values()], axis=0)
-        self.c = np.concatenate([grp[1]["c"] for grp in self.neuron_groups.values()], axis=0)
-        self.d = np.concatenate([grp[1]["d"] for grp in self.neuron_groups.values()], axis=0)
+        self.a = np.concatenate([grp[2]["a"] for grp in self.neuron_groups.values()], axis=0)
+        self.b = np.concatenate([grp[2]["b"] for grp in self.neuron_groups.values()], axis=0)
+        self.c = np.concatenate([grp[2]["c"] for grp in self.neuron_groups.values()], axis=0)
+        self.d = np.concatenate([grp[2]["d"] for grp in self.neuron_groups.values()], axis=0)
 
     def _autoevolve_preset_1(self, I):
         self.v += self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I)
@@ -122,6 +122,9 @@ class IzhikevichNN(CommonNN):
                 return array[start:] + array[:end]
             return array[start:end]
 
+        def STDP_filter(array):
+            return array[np.where(np.isin(array, self.apply_STDP, assume_unique=True))[0]]
+
         start_time = time.time()
         for st in range(0, Nsteps):
             t = self.sim_time + st * self.timestep
@@ -145,7 +148,7 @@ class IzhikevichNN(CommonNN):
             if self.use_STDP:
                 STDPp[st,spikes] = self.Ap; STDPn[st,spikes] = self.An;
                 for spike in spikes:
-                    sources = pre(spike); delays = ACD[sources,spike]
+                    sources = STDP_filter(pre(spike)); delays = ACD[sources,spike]
                     self.dS[sources,spike] += STDPp[st-delays,sources]
                 dst = max_delay
                 for prev_spikes in array_slice(raster, st-max_delay, st):
@@ -171,12 +174,13 @@ class IzhikevichNN(CommonNN):
 
             idx = 0; labels = iter(self.neuron_groups.keys())
             while idx < self.N:
-                label = next(labels); size = self.neuron_groups[label][0]
-                if self.apply_STDP[label] is True:
-                    for i in range(idx, idx+size):
+                label = next(labels)
+                size = self.neuron_groups[label][1] - self.neuron_groups[label][0]
+                for i in range(idx, idx+size):
+                    if i in self.apply_STDP:
                         targets = post(i)
-                        self.S[i,targets] += 0.01 + self.dS[i,targets]
-                    np.clip(self.S[idx:idx+size], self.S_min, self.S_max, self.S[idx:idx+size])
+                        adj = 0.01 + self.dS[i,targets]
+                        self.S[i,targets] = np.clip(self.S[i,targets]+adj, self.S_min, self.S_max)
                 idx += size
             self.dS *= self.dS_decay
 
