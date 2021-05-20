@@ -218,8 +218,8 @@ class CommonNN(BaseNN):
         self.use_STDP = state["network"]["use_STDP"]
 
         if self.use_STDP:
-            self.Ap = state["STDP"]["Ap"]; self.An = state["STDP"]["An"]
-            self.tau_p = state["STDP"]["tau_p"]; self.tau_n = state["STDP"]["tau_n"]
-            self.dS = state["STDP"]["dS"]; self.dS_decay = state["STDP"]["dS_decay"];
-            self.S_min = state["STDP"]["S_min"]; self.S_max = state["STDP"]["S_max"]
+            self.set_STDP_curve(state["STDP"]["Ap"], state["STDP"]["tau_p"], state["STDP"]["An"],
+                state["STDP"]["tau_n"], state["STDP"]["dS_decay"], state["STDP"]["S_min"],
+                state["STDP"]["S_max"])
+            self.dS = state["STDP"]["dS"]
             self.apply_STDP = state["STDP"]["apply_to"]
