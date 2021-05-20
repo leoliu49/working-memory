@@ -115,9 +115,9 @@ class CommonNN(BaseNN):
         if self.use_STDP and self.p_decay is not None:
             report.append("   {}\n".format("".join(["-" for i in range(50)])))
             report.append("{:^20} | ".format("STDP"))
-            report.append("{}*exp(dt/{})".format(self.Ap, self.tau_p))
+            report.append("{}*exp(Δt/{})".format(self.Ap, self.tau_p))
             report.append("   --->   ")
-            report.append("{}*exp(dt/{})".format(self.An, self.tau_n))
+            report.append("{}*exp(Δt/{})".format(self.An, self.tau_n))
 
         return "".join(report)
 
