@@ -109,6 +109,7 @@ class IzhikevichNN(CommonNN):
         other = dict()
         other["save_v"] = np.empty((Nsteps, self.N), dtype="float64")
         other["save_u"] = np.empty((Nsteps, self.N), dtype="float64")
+        other["firings"] = list()
 
         # Arithmetic / lookup functions
         def post(source):
@@ -129,9 +130,16 @@ class IzhikevichNN(CommonNN):
         for st in range(0, Nsteps):
             t = self.sim_time + st * self.timestep
 
-            # Record spike activity and apply synapse into the future
+            # Record spike activity
             spikes = np.where(self.v>=self.spike_threshold)[0]
-            raster[st].extend(spikes)
+            if len(spikes) > 0:
+                raster[st] = spikes.tolist()
+                other["firings"].append(np.vstack((
+                    np.full(spikes.shape, t, dtype="int"),
+                    spikes
+                )).T)
+
+            # Apply synapses into the future
             for spike in spikes:
                 targets = post(spike); delays = ACD[spike,targets]
                 I[st+delays,targets] += self.S[spike,targets]
@@ -190,12 +198,16 @@ class IzhikevichNN(CommonNN):
 
         self.sim_time += Nsteps * self.timestep
 
+        end_time = time.time()
+        other["meta"] = {
+            "sim_time": T,
+            "runtime": round(end_time-start_time, 2)
+        }
+
         if self.use_STDP:
             other["save_STDP"] = (np.array(STDPp), np.array(STDPn))
         other["save_I"] = np.array(I)
 
-        end_time = time.time()
-        print("Simulated {} ms ({} steps) in {} seconds.".format(T, Nsteps,
-            round(end_time-start_time, 2)))
+        other["firings"] = np.concatenate(other["firings"])
 
         return raster[:Nsteps], other

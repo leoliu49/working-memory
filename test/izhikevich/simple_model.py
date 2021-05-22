@@ -81,16 +81,7 @@ for timestep in timesteps:
     I[::int(np.ceil(1/timestep)),:] = Iin
 
     raster, other = n.evolve_for(T, I=I)
-    firings = list()
-    for st in range(len(raster)):
-        t = st * n.timestep
-        new_firings = np.vstack((
-            np.full((len(raster[st]),), t),
-            raster[st]
-        )).T
-        if new_firings.shape[0] != 0:
-            firings.append(new_firings)
-    firings = np.concatenate(firings)
+    firings = other["firings"]
 
     plt.scatter(firings[:,0], firings[:,1], s=0.5, c="steelblue", marker=".")
     plt.plot([0, T], [N_exc, N_exc], c="orange", ls="--")
