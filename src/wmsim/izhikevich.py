@@ -87,7 +87,7 @@ class IzhikevichNN(CommonNN):
         # Extend current input to include spikes arriving after simulation ends
         I = np.concatenate((I, np.zeros((max_delay, self.N), dtype="float64")), axis=0)
 
-        # at time t (step st): neuron i --> delay j --> neuron k
+        # At time t (step st): neuron i --> delay j --> neuron k
         #   raster[st] = [i1,i2,i3...] (negative indices refer to previous period)
         raster = list([list() for i in range(Nsteps+max_delay)])
 
@@ -211,3 +211,53 @@ class IzhikevichNN(CommonNN):
         other["firings"] = np.concatenate(other["firings"])
 
         return raster[:Nsteps], other
+
+    def stimulate_for(self, T, *, I=None):
+        Nsteps = int(T/self.timestep)
+
+        # Convert delay to discrete steps
+        ACD = np.array(np.ceil(self.ACD/self.timestep), dtype="int")
+        max_delay = np.max(ACD)
+
+        # Extend current input to include spikes arriving after simulation ends
+        I = np.concatenate((I, np.zeros((max_delay, self.N), dtype="float64")), axis=0)
+
+        # Empty initial conditions
+        firings = list()
+        real_v = self.v
+        self.v = np.concatenate([grp[2]["v0"] for grp in self.neuron_groups.values()], axis=0)
+        real_u = self.u
+        self.u = np.concatenate([grp[2]["u0"] for grp in self.neuron_groups.values()], axis=0)
+
+        # Arithmetic / lookup functions
+        def post(source):
+            return np.where(ACD[source,:]>0)[0]
+
+        for st in range(0, Nsteps):
+            t = self.sim_time + st * self.timestep
+
+            # Record spike activity
+            spikes = np.where(self.v>=self.spike_threshold)[0]
+            if len(spikes) > 0:
+                firings.append(np.vstack((
+                    np.full(spikes.shape, t, dtype="int"),
+                    spikes
+                )).T)
+
+            # Apply synapses into the future
+            for spike in spikes:
+                targets = post(spike); delays = ACD[spike,targets]
+                I[st+delays,targets] += self.S[spike,targets]
+
+            # Reset dynamics
+            self.v[spikes] = self.c[spikes]
+            self.u[spikes] += self.d[spikes]
+
+            # Update dynamics
+            self._autoevolve(I[st,:])
+
+        # Write back simulation state
+        self.v = real_v
+        self.u = real_u
+
+        return np.concatenate(firings)
