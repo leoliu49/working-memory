@@ -16,6 +16,11 @@ class IzhikevichNN(CommonNN):
         self.c = None
         self.d = None
 
+        # Cached values to apply to next evolution period
+        self.next_I = None
+        self.next_STDPp = None; self.next_STDPn = None
+        self.raster_cache = None
+
         self.spike_threshold = kwargs.get("spike_threshold", 30)
         self._autoevolve = {
             "preset_1": self._autoevolve_preset_1,
@@ -33,6 +38,11 @@ class IzhikevichNN(CommonNN):
         self.c = np.concatenate([grp[2]["c"] for grp in self.neuron_groups.values()], axis=0)
         self.d = np.concatenate([grp[2]["d"] for grp in self.neuron_groups.values()], axis=0)
 
+        self.next_I = np.zeros((0, self.N), dtype="float64")
+        self.next_STDPp = np.zeros((0, self.N), dtype="float64")
+        self.next_STDPn = np.zeros((0, self.N), dtype="float64")
+        self.raster_cache = list()
+
     @property
     def network_state(self):
         state = super().network_state
@@ -40,6 +50,15 @@ class IzhikevichNN(CommonNN):
             "simulation": {
                 "v": np.array(self.v),
                 "u": np.array(self.u),
+            }
+        })
+
+        state["network"].update({
+            "cache": {
+                "next_I": np.array(self.next_I),
+                "next_STDPp": np.array(self.next_STDPp),
+                "next_STDPn": np.array(self.next_STDPn),
+                "raster_cache": list(self.raster_cache)
             }
         })
 
@@ -54,6 +73,11 @@ class IzhikevichNN(CommonNN):
         self.b = np.concatenate([grp[2]["b"] for grp in self.neuron_groups.values()], axis=0)
         self.c = np.concatenate([grp[2]["c"] for grp in self.neuron_groups.values()], axis=0)
         self.d = np.concatenate([grp[2]["d"] for grp in self.neuron_groups.values()], axis=0)
+
+        self.next_I = state["network"]["cache"]["next_I"]
+        self.next_STDPp = state["network"]["cache"]["next_STDPp"]
+        self.next_STDPn = state["network"]["cache"]["next_STDPn"]
+        self.raster_cache = state["network"]["cache"]["raster_cache"]
 
     def _autoevolve_preset_1(self, I):
         self.v += self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I)
