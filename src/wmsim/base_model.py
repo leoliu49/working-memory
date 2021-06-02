@@ -71,8 +71,6 @@ class BaseNN:
         return state
 
     def load_state(self, state):
-        self.model_name = state["model_name"]
-
         self.N = state["network"]["N"]
         self.neuron_params = state["network"]["neuron_params"]
         self.neuron_groups = state["network"]["neuron_groups"]

@@ -1,3 +1,4 @@
+import heapq
 import numpy as np
 import time
 from . import ModelError, BaseNN, CommonNN
@@ -129,7 +130,7 @@ class IzhikevichNN(CommonNN):
                 STDPp[-(length-1):,:] = self.next_STDPp[:-1,:]; STDPp[0,:] = self.next_STDPp[-1,:]
                 STDPn[-(length-1):,:] = self.next_STDPn[:-1,:]; STDPn[0,:] = self.next_STDPn[-1,:]
 
-        # All other recorded data are accessible with kwarg flags
+        # All other recorded data are accessible in dictionary
         other = dict()
         other["save_v"] = np.empty((Nsteps, self.N), dtype="float64")
         other["save_u"] = np.empty((Nsteps, self.N), dtype="float64")
@@ -285,3 +286,235 @@ class IzhikevichNN(CommonNN):
         self.u = real_u
 
         return np.concatenate(firings)
+
+
+class RollbackIzhikevichNN(CommonNN):
+
+    class ImpulsePayload:
+        def __init__(self, arrival_time, dest_nids, strengths):
+            self.arrival_time = arrival_time
+            self.dest_nids = dest_nids
+            self.strengths = strengths
+
+        def __lt__(self, other):
+            return self.arrival_time < other.arrival_time
+
+    def __init__(self, **kwargs):
+        super().__init__("Rollback Izhikevich Network", **kwargs)
+        for param in ["a", "b", "c", "d", "v0", "u0"]:
+            self.neuron_params.append(param)
+
+        self.v = None
+        self.u = None
+        self.a = None
+        self.b = None
+        self.c = None
+        self.d = None
+
+        # Cached values to apply to next evolution period
+        self.next_I = None
+
+        self.spike_threshold = kwargs.get("spike_threshold", 30)
+        self._autoevolve = {
+            "preset_1": self._autoevolve_preset_1,
+            "preset_2": self._autoevolve_preset_2,
+            "preset_3": self._autoevolve_preset_3,
+            "preset_4": self._autoevolve_preset_4
+        }[kwargs.get("autoevolve_formula", "preset_1")]
+
+    def init(self):
+        super().init()
+        self.v = np.concatenate([grp[2]["v0"] for grp in self.neuron_groups.values()], axis=0)
+        self.u = np.concatenate([grp[2]["u0"] for grp in self.neuron_groups.values()], axis=0)
+        self.a = np.concatenate([grp[2]["a"] for grp in self.neuron_groups.values()], axis=0)
+        self.b = np.concatenate([grp[2]["b"] for grp in self.neuron_groups.values()], axis=0)
+        self.c = np.concatenate([grp[2]["c"] for grp in self.neuron_groups.values()], axis=0)
+        self.d = np.concatenate([grp[2]["d"] for grp in self.neuron_groups.values()], axis=0)
+
+        self.next_I = list()
+
+    @property
+    def network_state(self):
+        state = super().network_state
+        state.update({
+            "simulation": {
+                "v": np.array(self.v),
+                "u": np.array(self.u),
+            }
+        })
+
+        state["network"].update({
+            "cache": {
+                "next_I": list(self.next_I)
+            }
+        })
+
+        return state
+
+    def load_state(self, state):
+        super().load_state(state)
+        self.v = state["simulation"]["v"]
+        self.u = state["simulation"]["u"]
+
+        self.a = np.concatenate([grp[2]["a"] for grp in self.neuron_groups.values()], axis=0)
+        self.b = np.concatenate([grp[2]["b"] for grp in self.neuron_groups.values()], axis=0)
+        self.c = np.concatenate([grp[2]["c"] for grp in self.neuron_groups.values()], axis=0)
+        self.d = np.concatenate([grp[2]["d"] for grp in self.neuron_groups.values()], axis=0)
+
+        self.next_I = state["network"]["cache"]["next_I"]
+
+    def _autoevolve_preset_1(self, timestep):
+        return (
+            self.v + (timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u)),
+            self.u + (timestep * (self.a * (self.b * self.v - self.u)))
+        )
+
+    def _autoevolve_preset_2(self, timestep):
+        return (
+            self.v + (timestep * (0.04 * np.square(self.v) + 4.1 * self.v + 108 - self.u)),
+            self.u + (timestep * (self.a * (self.b * self.v - self.u)))
+        )
+
+    def _autoevolve_preset_3(self, timestep):
+        return (
+            self.v + (timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u)),
+            self.u + (timestep * (self.a * (self.b * (self.v + 65))))
+        )
+
+    def _autoevolve_preset_4(self, timestep):
+        v = self.v + (0.5 * timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u))
+        v += 0.5 * timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u)
+        return (
+            v,
+            self.u + (timestep * (self.a * (self.b * self.v - self.u)))
+        )
+
+    def evolve_for(self, T, *, I=None, jitter=None, collect_every=None):
+        if I is None:
+            Iqueue = list()
+        else:
+            I = list(I)
+            I.extend(self.next_I)
+            heapq.heapify(I)
+
+        if jitter is not None:
+            raise ModelError("Jitter is currently unsupported.")
+
+        if collect_every is None:
+            collect_every = self.timestep
+        elif collect_every < self.timestep:
+            raise ModelError("Cannot guarantee data collection on intervals smaller than timestep.")
+
+        firings = list()
+
+        # All other recorded data are accessible in dictionary
+        other = dict()
+        other["t_axis"] = list()
+        other["save_v"] = list()
+        other["save_u"] = list()
+
+        # Arithmetic / lookup functions
+        def post(source):
+            return np.where(self.ACD[source,:]>0)[0]
+
+        def pre(target):
+            return np.where(self.ACD[:,target]>0)[0]
+
+        start_time = time.time()
+        t = 0
+        checkpoint = 0
+        last_collected = -collect_every
+        while t <= T:
+            if t > checkpoint:
+                print("Simulating ms {}: {}".format(checkpoint, len(firings)))
+                checkpoint += 1
+
+            # 1. Find next impulse payload and determine timestep dynamically
+            try:
+                next_I = I[0]; dt_to_next_I = next_I.arrival_time - t
+                if dt_to_next_I < self.timestep:
+                    apply_impulse = True
+                    timestep = dt_to_next_I
+                else:
+                    apply_impulse = False
+                    timestep = self.timestep
+            except IndexError:
+                apply_impulse = False
+                timestep = self.timestep
+
+            # 2. Simulate for timestep and detect spikes
+            new_v, new_u = self._autoevolve(timestep)
+
+            spikes = np.where(new_v>=self.spike_threshold)[0]
+            if len(spikes) > 0:
+                # 3a. There are spikes: find earliest spike, and rollback to that specific time
+                dv = new_v[spikes] - self.v[spikes]
+                dv_to_threshold = self.spike_threshold - self.v[spikes]
+                ratio = dv_to_threshold/dv
+
+                earliest_idxs = np.where(ratio == ratio.min())
+                earliest_spikes = spikes[earliest_idxs]
+
+                timestep = timestep * ratio.min()
+                new_v, new_u = self._autoevolve(timestep)
+                spikes = earliest_spikes
+
+            elif apply_impulse:
+                # 3b. No spikes: apply impulse at end of simulation and recheck for spikes
+                heapq.heappop(I)
+                new_v[next_I.dest_nids] += next_I.strengths
+                spikes = np.where(new_v>=self.spike_threshold)[0]
+
+            t += timestep
+            self.v = new_v
+            self.u = new_u
+
+            if t - last_collected >= collect_every:
+                last_collected += collect_every
+                other["t_axis"].append(t)
+                other["save_v"].append(np.array(self.v))
+                other["save_u"].append(np.array(self.u))
+
+            # Apply reset dynamics
+            if len(spikes) > 0:
+                # Collect data on presence of spikes, overwriting past data if needed
+                if other["t_axis"][-1] == t:
+                    other["save_v"][-1] = np.array(self.v)
+                    other["save_u"][-1] == np.array(self.u)
+                else:
+                    other["t_axis"].append(t)
+                    other["save_v"].append(np.array(self.v))
+                    other["save_u"].append(np.array(self.u))
+
+                self.v[spikes] = self.c[spikes]
+                self.u[spikes] += self.d[spikes]
+                for spike in spikes:
+                    for target in post(spike):
+                        arrival_time = t + self.ACD[spike,target]
+                        heapq.heappush(
+                            I,
+                            self.ImpulsePayload(arrival_time, target, self.S[spike,target])
+                        )
+                firings.append(np.vstack((
+                    np.full(spikes.shape, self.sim_time+t),
+                    spikes
+                )).T)
+
+        # Save to cache for use in next period
+        self.next_I = I
+        for impulse in self.next_I:
+            impulse.arrival_time -= t
+
+        self.sim_time += t
+        end_time = time.time()
+
+        other["t_axis"] = np.array(other["t_axis"])
+        other["save_v"] = np.vstack(other["save_v"])
+        other["save_u"] = np.vstack(other["save_u"])
+
+        other["meta"] = {
+            "sim_time": t,
+            "runtime": round(end_time-start_time, 2)
+        }
+
+        return np.concatenate(firings), other
