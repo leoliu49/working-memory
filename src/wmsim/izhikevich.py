@@ -81,20 +81,20 @@ class IzhikevichNN(CommonNN):
         self.raster_cache = state["network"]["cache"]["raster_cache"]
 
     def _autoevolve_preset_1(self, I):
-        self.v += self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I)
+        self.v += self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u) + I
         self.u += self.timestep * (self.a * (self.b * self.v - self.u))
 
     def _autoevolve_preset_2(self, I):
-        self.v += self.timestep * (0.04 * np.square(self.v) + 4.1 * self.v + 108 - self.u + I)
+        self.v += self.timestep * (0.04 * np.square(self.v) + 4.1 * self.v + 108 - self.u) + I
         self.u += self.timestep * (self.a * (self.b * self.v - self.u))
 
     def _autoevolve_preset_3(self, I):
-        self.v += self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I)
+        self.v += self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u) + I
         self.u += self.timestep * (self.a * (self.b * (self.v + 65)))
 
     def _autoevolve_preset_4(self, I):
-        self.v += 0.5 * self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I)
-        self.v += 0.5 * self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u + I)
+        self.v += 0.5 * (self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u) + I)
+        self.v += 0.5 * (self.timestep * (0.04 * np.square(self.v) + 5 * self.v + 140 - self.u) + I)
         self.u += self.timestep * (self.a * (self.b * self.v - self.u))
 
     def evolve_for(self, T, *, I=None):

@@ -75,8 +75,8 @@ for timestep in timesteps:
 
     # Set I (spike at every 1 ms)
     Iin = np.empty(noisy_input.shape, dtype="float64")
-    Iin[:,:N_exc] = noisy_input[:,:N_exc] * (5 / timestep)
-    Iin[:,N_exc:] = noisy_input[:,N_exc:] * (2 / timestep)
+    Iin[:,:N_exc] = noisy_input[:,:N_exc] * 5
+    Iin[:,N_exc:] = noisy_input[:,N_exc:] * 2
     I = np.zeros((int(np.ceil(T/timestep)), N_exc+N_inh))
     I[::int(np.ceil(1/timestep)),:] = Iin
 

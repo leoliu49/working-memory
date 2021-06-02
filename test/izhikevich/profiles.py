@@ -79,7 +79,7 @@ def make_I(profile, T, timestep):
         I += 80
         I[int(50/timestep):int(250/timestep)] = 75
 
-    return I
+    return I * timestep
 
 
 profiles = {
